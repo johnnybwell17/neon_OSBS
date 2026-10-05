@@ -67,12 +67,13 @@ eddy covariance:
 All 11 sensor products were then pulled via `download_full_history.py`
 (5 needed an individual retry after transient rate-limiting -- see
 [Known bugs / quirks](#known-bugs--quirks-inherited-from-neon_cperneon_clbj)
-below), and both PhenoCam cameras via `download_phenocam_gcc.py
---full-history`. **Eddy covariance has not been pulled** -- cataloged and
-confirmed available, but a separate, size-sensitive step not yet
-requested for this site. See the top-level
-[README.md](../README.md#5-data-currently-on-hand) for the full
-per-product rows/coverage table.
+below), both PhenoCam cameras via `download_phenocam_gcc.py
+--full-history`, and eddy covariance via `download_eddy_covariance.py`
+(101 of 115 requested site-months downloaded; 1 of those 101, 2017-02,
+had to be manually excluded before stacking due to a schema-
+incompatibility bug -- see [Known bugs / quirks](#known-bugs--quirks-inherited-from-neon_cperneon_clbj)
+below). See the top-level [README.md](../README.md#5-data-currently-on-hand)
+for the full per-product rows/coverage table.
 
 ## PhenoCam: more complex here than at CPER or CLBJ, verified live
 
@@ -133,7 +134,7 @@ Same as `neon_CPER`/`neon_CLBJ`:
 <SITE>_<product_shortname>_<start_YYYY-MM>_<end_YYYY-MM>.csv
 ```
 
-e.g. `OSBS_air_temperature_2014-08_2026-08.csv` (once pulled).
+e.g. `OSBS_air_temperature_2014-08_2026-08.csv`.
 `product_shortname` is `aliases[0]` from the matching
 `sensor_catalog.yaml` entry.
 
@@ -197,11 +198,34 @@ Confirmed to still apply at OSBS:
   `SCO2C_30min`.
 - `neonutilities` 2.0.1's `stack_eddy()` calls a `drop(columns=...,
   axis=1)` pattern that pandas 3.0 rejects. Fixed by pinning `pandas<3`
-  in `scripts/requirements.txt` (same pin carried over unchanged). Not
-  yet exercised here since eddy covariance hasn't been pulled for OSBS.
+  in `scripts/requirements.txt` (same pin carried over unchanged).
 - Bulk full-catalog pulls hit the same transient `ConnectionError` under
   heavy request volume that CPER documented: 5 of 11 products failed on
   the first `download_full_history.py` pass at OSBS (wind, radiation_net,
   radiation_par, soil_heat_flux, soil_co2) and all cleared on a 90s
   backoff + individual retry via `download_neon_product.py` -- not a sign
   of a bad token or site code if this recurs.
+
+New, OSBS-specific bug found pulling eddy covariance (not seen at CPER
+or CLBJ, neither of which completed a full eddy covariance pull):
+
+- **One HDF5 file per site can have an incompatible schema and crash
+  `stack_eddy()`.** OSBS's 2017-02 eddy covariance file
+  (`NEON.D03.OSBS.DP4.00200.001.nsae.2017-02.basic.20221215T020221Z.h5`)
+  was generated under an older NEON processing revision -- its
+  generation timestamp (Dec 2022) is far older than every other pulled
+  month's (Jan 2026+) -- giving it a different column layout.
+  `neonutilities==2.0.1`'s `stack_eddy()` tries to `np.unique()` the
+  column-name lists across all files and raises `ValueError: setting an
+  array element with a sequence... inhomogeneous shape` when one file's
+  columns don't match the rest. Symptom to watch for: this file also
+  stayed as a `.h5.gz` that `zips_by_product()` never auto-decompressed
+  (every other month got unzipped to a bare `.h5` automatically) --
+  check for a lingering `.h5.gz` or an outlier generation timestamp in
+  the staging dir as the tell. Not a network/disk/token problem;
+  re-downloading reproduces the exact same file and the exact same
+  crash. Fix applied here: move that one file out of the staging
+  directory, re-run `stack_eddy(filepath=staging_dir, level="dp04")` on
+  the rest. `download_eddy_covariance.py` does not currently detect or
+  work around this automatically -- it will crash the same way if
+  re-run end-to-end against OSBS without the manual exclusion step.

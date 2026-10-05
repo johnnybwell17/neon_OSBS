@@ -26,12 +26,15 @@ Which product maps to which folder/table/interval is defined in
 needed for the PhenoCam script or `neon_site_availability.py`, which only
 hits NEON's open `/sites` metadata endpoint).
 
-**Current data status: all 11 sensor products and both PhenoCam series
-have been downloaded** (~3.1 GB sensor data, ~1.8 MB PhenoCam -- pulled
-2026-10-05, see [Data currently on hand](#5-data-currently-on-hand) below
-for the real per-product numbers). `processed/` is still empty. Eddy
-covariance (`DP4.00200.001`) is cataloged but **has not been pulled** --
-that's a separate, size-sensitive step, not yet run for this site.
+**Current data status: all 11 sensor products, both PhenoCam series, and
+eddy covariance have been downloaded** (~3.1 GB sensor data, ~1.8 MB
+PhenoCam, 14 MB final eddy covariance CSV -- pulled 2026-10-05, see
+[Data currently on hand](#5-data-currently-on-hand) below for the real
+per-product numbers). `processed/` is still empty. The eddy covariance
+pull hit a genuine schema-incompatibility bug on one month (2017-02,
+produced under an older NEON processing revision) that crashes
+`neonutilities`'s `stack_eddy()` -- worked around by excluding that one
+file; see [Known issues](#7-known-issues-and-gotchas) below.
 
 OSBS's own PhenoCam ROI structure turned out to be noticeably more
 complex than CPER's or CLBJ's (9 and 6 ROI codes vs. 1-4) -- live
@@ -79,7 +82,7 @@ neon_OSBS/
 │   ├── phenocam/
 │   │   ├── understory/        # NEON.D03.OSBS.DP1.00042 (ROIs GR_1000+GR_2000 stitched -- HAS DATA)
 │   │   └── canopy/            # NEON.D03.OSBS.DP1.00033 (ROIs EN_1000+EN_2000 stitched -- HAS DATA)
-│   └── eddy_covariance/       # DP4.00200.001 -- EMPTY, not pulled yet (separate, size-sensitive step)
+│   └── eddy_covariance/       # DP4.00200.001 -- HAS DATA (100/101 site-months; 2017-02 excluded, schema bug)
 └── processed/                 # empty; for derived/analysis outputs you create from raw/ (not written to by any script)
 ```
 
@@ -177,14 +180,20 @@ fixed trailing window instead of full history.)
 step** (potentially large -- check the size estimate first):
 
 ```bash
-python3 scripts/neon_site_availability.py --site OSBS   # note the DP4.00200.001 row -- not yet confirmed
-python3 scripts/download_eddy_covariance.py --site OSBS --start <start> --end <end>
+python3 scripts/neon_site_availability.py --site OSBS   # DP4.00200.001: 2017-02 -> 2026-08 (confirmed 2026-10-05)
+python3 scripts/download_eddy_covariance.py --site OSBS --start 2017-02 --end 2026-08
 ```
 
 `download_eddy_covariance.py` estimates total download size and checks
 free disk space *before downloading anything*, aborting if the estimate
 exceeds 90% of free space -- confirm the estimate it prints looks
-reasonable before letting it proceed.
+reasonable before letting it proceed. **For OSBS specifically, this
+script's own `stack_eddy()` call will crash on the 2017-02 file** (see
+[Known issues](#7-known-issues-and-gotchas)) -- the script does not
+currently work around this automatically; the fix used here was manual
+(move that one file out of the staging dir, re-run `stack_eddy()` on the
+rest). If re-running this pull from scratch, expect to repeat that
+workaround.
 
 **Step 4 -- PhenoCam, always run separately from the above** (no token
 needed):
@@ -254,10 +263,22 @@ not a summarized fetch) on 2026-10-05:
 | canopy (`NEON.D03.OSBS.DP1.00033`) | `EN_1000`+`EN_2000` | 3,559 | 2016-12-15 -> 2026-10-04 | One 22-day gap at the generation hand-off (2026-02-24 -> 2026-03-17). `EN_1000` alone runs gap-free 2016-12-15 -> 2026-02-23; `EN_2000` is a new generation starting right after. |
 | understory (`NEON.D03.OSBS.DP1.00042`) | `GR_1000`+`GR_2000` | 3,546 | 2016-12-14 -> 2026-10-04 | One 36-day gap at the hand-off (2025-12-10 -> 2026-01-14). **`UN_0001` -- the semantically obvious name match -- was checked and rejected**: it's a short series that stops 2018-03-11 (453 rows), the same pattern as CPER's abandoned understory camera. `GR_1000`+`GR_2000` gives vastly better coverage. |
 
-**Eddy covariance (DP4.00200.001): not pulled.** Cataloged and confirmed
-available (2017-02 -> 2026-08 per `neon_site_availability.py`), but this
-is a separate, potentially multi-GB HDF5 pull (see CPER's/CLBJ's
-experience) that hasn't been requested for this site yet.
+**Eddy covariance (DP4.00200.001)**: requested 2017-02 -> 2026-08 (115
+site-months); `zips_by_product()` actually returned 101 site-months
+(~18 GB raw HDF5). Of those, **one file (2017-02) crashed
+`stack_eddy()`** with a column-shape error -- its generation timestamp
+(Dec 2022) was far older than every other month's (Jan 2026+), meaning
+it was produced under an incompatible older NEON processing schema. Not
+a download/network/disk issue; re-pulling it would hit the same error.
+Worked around by excluding that one file and stacking the remaining 100
+(2017-03 -> 2025-06-30, 146,112 unfiltered rows). After the NEE QC filter
+(`qfqm.fluxCo2.nsae.qfFinl == 0`, which dropped 78.8% of rows -- 115,124
+of 146,112), the final output is **14 MB, 30,988 rows**
+(`raw/eddy_covariance/OSBS_eddy_covariance_2017-03_2026-08.csv`).
+Notably, the QC-passing rows don't start until **2019-09-15** -- every
+row from 2017-03 through 2019-09-14 was flagged bad by the NEE quality
+flag, not simply absent; real usable coverage is 2019-09-15 ->
+2025-06-28.
 
 ### 6. Uploading to HuggingFace
 
@@ -291,8 +312,21 @@ Carried forward from `neon_CPER`/`neon_CLBJ`, confirmed to still apply:
   retry via `download_neon_product.py` cleared all 5. Same pattern CPER
   documented -- don't assume a bad token/site code if this recurs.
 
-New, OSBS-specific finding from this repo's setup (2026-10-05):
+New, OSBS-specific findings from this repo's setup (2026-10-05):
 
+- **One eddy covariance month has an incompatible schema and crashes
+  `stack_eddy()`.** The 2017-02 HDF5 file was generated under an older
+  NEON processing revision (timestamp Dec 2022, vs. Jan 2026+ for every
+  other month) and has a different column layout that
+  `neonutilities==2.0.1`'s `stack_eddy()` can't merge alongside the
+  newer files (`ValueError: setting an array element with a
+  sequence... inhomogeneous shape`). Not a network/disk/token issue --
+  re-downloading changes nothing. Fixed by excluding that one file from
+  the staging directory before stacking the rest. If re-running this
+  pull, check for a `.h5.gz` file that never got auto-decompressed
+  (another symptom of the same file) and/or a generation timestamp that
+  stands out from the rest, and exclude it rather than assuming the
+  whole pull is broken.
 - **PhenoCam's semantically-obvious ROI name was the wrong pick.**
   `UN_0001` ("UN" = understory, matching CLBJ's `UN_1000` naming for the
   same product) looked like the right choice by convention, but direct

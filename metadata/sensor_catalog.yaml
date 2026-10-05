@@ -229,6 +229,27 @@ products:
       exchange = NEE) and leaves the other 10 untouched.
 
       Also requires pandas<3 in the venv -- see scripts/requirements.txt.
-      OSBS's actual availableMonths range has not been checked yet --
-      run scripts/neon_site_availability.py --site OSBS first and read
-      the printed size estimate before letting a full pull proceed.
+
+      PULLED for OSBS on 2026-10-05: requested 2017-02 -> 2026-08 (115
+      site-months); zips_by_product() actually returned 101 site-months
+      (same provisional-ish cutoff pattern as the other 11 products).
+      Of those 101, the 2017-02 file crashed stack_eddy() with
+      `ValueError: setting an array element with a sequence... detected
+      shape was (101,) + inhomogeneous part` -- that file's generation
+      timestamp (20221215T020221Z) is far older than every other month's
+      (all 20260115Txxxxxx or later), meaning it was produced under an
+      older NEON processing schema with a different column layout that
+      the current neonutilities (2.0.1) can't merge alongside the newer
+      files. NOT a disk/token/network issue -- re-downloading it changes
+      nothing; it genuinely has an incompatible schema. Worked around by
+      excluding that one file from the staging dir before stacking the
+      remaining 100 (2017-03 -> 2025-06-30, 146,112 unfiltered rows).
+      After the standard NEE QC filter, only 30,988 rows survive, and
+      notably the QC-passing rows don't start until 2019-09-15 -- every
+      row from 2017-03 through 2019-09-14 was flagged bad by
+      qfqm.fluxCo2.nsae.qfFinl, not merely absent. If OSBS's eddy
+      covariance is ever re-pulled, expect the same 2017-02 failure and
+      apply the same fix (gunzip the lone .h5.gz if needed, move the
+      oldest-generation-timestamp file out of the staging dir, re-run
+      stack_eddy on the rest) rather than assuming the whole pull is
+      broken.
