@@ -26,13 +26,20 @@ Which product maps to which folder/table/interval is defined in
 needed for the PhenoCam script or `neon_site_availability.py`, which only
 hits NEON's open `/sites` metadata endpoint).
 
-**Current data status: nothing pulled yet.** This is a fresh scaffold as
-of 2026-10-05 -- `raw/` and `processed/` are both empty. OSBS's own
-PhenoCam ROI structure turned out to be noticeably more complex than
-CPER's or CLBJ's (9 and 6 ROI codes vs. 1-4) and has **not** been fully
-verified live yet -- see [metadata/README.md](metadata/README.md) before
-trusting the catalog's current ROI picks. See
-[Detailed guide](#detailed-guide) below for the full walkthrough.
+**Current data status: all 11 sensor products and both PhenoCam series
+have been downloaded** (~3.1 GB sensor data, ~1.8 MB PhenoCam -- pulled
+2026-10-05, see [Data currently on hand](#5-data-currently-on-hand) below
+for the real per-product numbers). `processed/` is still empty. Eddy
+covariance (`DP4.00200.001`) is cataloged but **has not been pulled** --
+that's a separate, size-sensitive step, not yet run for this site.
+
+OSBS's own PhenoCam ROI structure turned out to be noticeably more
+complex than CPER's or CLBJ's (9 and 6 ROI codes vs. 1-4) -- live
+verification (direct CSV parsing, 2026-10-05) found the semantically
+obvious pick (`UN_0001`, matching CLBJ's naming) is actually the
+*wrong* one: it's a short series retired in 2018, not the long-running
+camera. `GR_1000`+`GR_2000` (stitched) is used instead -- see
+[Product catalog](#4-product-catalog-metadatasensor_catalogyaml) below.
 
 **Like `neon_CPER` (not `neon_CLBJ`), this repo's goal is full available
 history per product**, not a trailing window.
@@ -58,21 +65,21 @@ neon_OSBS/
 │   ├── sensor_catalog.yaml    # product catalog: 11 core sensor products + eddy covariance, copied unchanged
 │   │                          #   from neon_CPER; PhenoCam entries are OSBS-specific and UNVERIFIED, see notes
 │   └── README.md              # folder-to-product mapping + OSBS-specific findings/caveats (this repo's version)
-├── raw/                       # one subfolder per product -- currently EMPTY, nothing pulled yet
-│   ├── air_temperature/       # DP1.00002.001
-│   ├── soil_moisture/         # DP1.00094.001
-│   ├── soil_temperature/      # DP1.00041.001
-│   ├── precipitation/         # DP1.00044.001
-│   ├── radiation/             # DP1.00023.001 + DP1.00024.001
-│   ├── humidity/              # DP1.00098.001
-│   ├── pressure/              # DP1.00004.001
-│   ├── wind/                  # DP1.00001.001
-│   ├── soil_heat_flux/        # DP1.00040.001
-│   ├── soil_co2/              # DP1.00095.001
+├── raw/                       # one subfolder per product -- all 11 sensor products + both PhenoCam series pulled (2026-10-05)
+│   ├── air_temperature/       # DP1.00002.001 -- HAS DATA
+│   ├── soil_moisture/         # DP1.00094.001 -- HAS DATA
+│   ├── soil_temperature/      # DP1.00041.001 -- HAS DATA
+│   ├── precipitation/         # DP1.00044.001 -- HAS DATA
+│   ├── radiation/             # DP1.00023.001 + DP1.00024.001 -- HAS DATA
+│   ├── humidity/              # DP1.00098.001 -- HAS DATA
+│   ├── pressure/              # DP1.00004.001 -- HAS DATA
+│   ├── wind/                  # DP1.00001.001 -- HAS DATA
+│   ├── soil_heat_flux/        # DP1.00040.001 -- HAS DATA
+│   ├── soil_co2/              # DP1.00095.001 -- HAS DATA
 │   ├── phenocam/
-│   │   ├── understory/        # NEON.D03.OSBS.DP1.00042 (ROI UN_0001 -- UNVERIFIED, see metadata/README.md)
-│   │   └── canopy/            # NEON.D03.OSBS.DP1.00033 (ROI EN_1000 -- UNVERIFIED, see metadata/README.md)
-│   └── eddy_covariance/       # DP4.00200.001
+│   │   ├── understory/        # NEON.D03.OSBS.DP1.00042 (ROIs GR_1000+GR_2000 stitched -- HAS DATA)
+│   │   └── canopy/            # NEON.D03.OSBS.DP1.00033 (ROIs EN_1000+EN_2000 stitched -- HAS DATA)
+│   └── eddy_covariance/       # DP4.00200.001 -- EMPTY, not pulled yet (separate, size-sensitive step)
 └── processed/                 # empty; for derived/analysis outputs you create from raw/ (not written to by any script)
 ```
 
@@ -129,12 +136,26 @@ python3 scripts/neon_site_availability.py --site OSBS
 
 This prints each of the 11 core products' + eddy covariance's true
 available `start_ym -> end_ym`, straight from NEON's `/sites` metadata.
-**This has not been run in this environment yet** -- a partial manual
-check (2026-10-05) confirmed OSBS has `DP1.00001.001` (wind),
-`DP1.00002.001` (air_temperature), and `DP1.00004.001` (pressure) data
-2014-08 through 2026-08, but did not confirm the other 8 sensor products
-or eddy covariance -- run the script yourself for the real, complete
-answer before pulling.
+Run 2026-10-05, OSBS has **no missing products and no internal gaps** --
+every one of the 11 sensor products plus eddy covariance is listed:
+
+| Alias | ID | Available range |
+|---|---|---|
+| `wind` | DP1.00001.001 | 2014-08 -> 2026-08 |
+| `air_temperature` | DP1.00002.001 | 2014-08 -> 2026-08 |
+| `barometric_pressure` | DP1.00004.001 | 2014-08 -> 2026-08 |
+| `radiation_net` | DP1.00023.001 | 2014-08 -> 2026-08 |
+| `radiation_par` | DP1.00024.001 | 2014-08 -> 2026-08 |
+| `soil_heat_flux` | DP1.00040.001 | 2016-09 -> 2026-08 |
+| `soil_temperature` | DP1.00041.001 | 2016-09 -> 2026-08 |
+| `precipitation` | DP1.00044.001 | 2016-09 -> 2026-08 |
+| `soil_moisture` | DP1.00094.001 | 2016-09 -> 2026-08 |
+| `soil_co2` | DP1.00095.001 | 2016-11 -> 2026-08 |
+| `relative_humidity` | DP1.00098.001 | 2015-06 -> 2026-08 |
+| eddy covariance | DP4.00200.001 | 2017-02 -> 2026-08 |
+
+Re-run this yourself before a real pull if time has passed, since NEON's
+published range can advance.
 
 **Step 1 -- single-product test pull** (confirm token + site code work
 before anything larger):
@@ -174,9 +195,11 @@ python3 scripts/download_phenocam_gcc.py --site OSBS --full-history
 
 **Before running this**, read [metadata/README.md](metadata/README.md)'s
 PhenoCam section -- OSBS has 9 canopy ROI codes and 6 understory ROI
-codes (vs. CPER's 1-4), and the catalog's current `EN_1000`/`UN_0001`
-picks have **not** been confirmed to be the longest-running/least-gapped
-choice the way CPER's and CLBJ's were. Re-verify live first.
+codes (vs. CPER's 1-4). These have now been verified live (direct CSV
+parse, 2026-10-05): the catalog uses `EN_1000`+`EN_2000` (canopy) and
+`GR_1000`+`GR_2000` (understory), stitched chronologically -- notably
+`UN_0001`, the semantically obvious name match for "understory," turned
+out to be the *wrong* pick (a short series retired in 2018).
 
 ### 4. Product catalog (`metadata/sensor_catalog.yaml`)
 
@@ -184,13 +207,57 @@ Catalog structure and the 11 core sensor product entries + the
 `DP4.00200.001` eddy covariance entry are copied unchanged from
 `neon_CPER` (NEON product catalog entries aren't site-specific -- `--site`
 is passed at download time). The two PhenoCam entries are OSBS-specific
-and **unverified** -- see [metadata/README.md](metadata/README.md) for
-the full caveat before trusting them.
+and have been verified live (direct CSV parse) -- see
+[metadata/README.md](metadata/README.md) for the full detail, including
+why `UN_0001` was rejected in favor of `GR_1000`+`GR_2000`.
 
 ### 5. Data currently on hand
 
-**Nothing.** `raw/` and `processed/` are both empty as of 2026-10-05 --
-this is a fresh scaffold, not yet run against real data.
+**All 11 sensor products and both PhenoCam series have been pulled**
+(2026-10-05), via `download_full_history.py` (plus individual retries
+for 5 products that hit transient rate-limiting) and
+`download_phenocam_gcc.py --full-history`.
+
+**11 NEON sensor products**, basic package, ~3.1 GB total. Every product
+was requested through 2026-08 but the actual pulled data stops at
+**2025-06-30** in every case -- `neonutilities` excludes NEON's most
+recent ~13-14 months as unreviewed "provisional" data by default. This is
+uniform across all 11 products, not a per-product gap:
+
+| Product | dpid | rows | size | coverage |
+|---|---|---|---|---|
+| air_temperature | DP1.00002.001 | 955,440 | 136M | 2014-08-07 -> 2025-06-30 |
+| soil_moisture | DP1.00094.001 | 6,151,680 | 1.1G | 2016-09-22 -> 2025-06-30 |
+| soil_temperature | DP1.00041.001 | 6,920,640 | 996M | 2016-09-22 -> 2025-06-30 |
+| relative_humidity | DP1.00098.001 | 339,696 | 72M | 2015-06-08 -> 2025-06-30 |
+| barometric_pressure | DP1.00004.001 | 191,376 | 32M | 2014-08-01 -> 2025-06-30 |
+| precipitation | DP1.00044.001 | 76,800 | 8.1M | 2016-09-26 -> 2025-06-30 |
+| wind | DP1.00001.001 | 955,440 | 151M | 2014-08-07 -> 2025-06-30 |
+| radiation_net | DP1.00023.001 | 382,176 | 83M | 2014-08-07 -> 2025-06-30 |
+| radiation_par | DP1.00024.001 | 1,146,816 | 169M | 2014-08-01 -> 2025-06-30 |
+| soil_heat_flux | DP1.00040.001 | 461,376 | 64M | 2016-09-22 -> 2025-06-30 |
+| soil_co2 | DP1.00095.001 | 2,275,920 | 310M | 2016-11-04 -> 2025-06-30 |
+
+**Retry note:** on the first `download_full_history.py` pass, 5 of 11
+products (wind, radiation_net, radiation_par, soil_heat_flux, soil_co2)
+failed with a transient `ConnectionError: Cannot access NEON API` --
+the same rate-limiting pattern already documented in `neon_CPER`'s
+README. A 90s backoff followed by individually re-running each via
+`download_neon_product.py` cleared all 5 on the first retry.
+
+**2 PhenoCam Network cameras** -- verified live against
+`phenocam.nau.edu`'s per-ROI CSV date ranges (direct `pandas.read_csv()`,
+not a summarized fetch) on 2026-10-05:
+
+| Camera | ROI(s) | Rows | Coverage | Notes |
+|---|---|---|---|---|
+| canopy (`NEON.D03.OSBS.DP1.00033`) | `EN_1000`+`EN_2000` | 3,559 | 2016-12-15 -> 2026-10-04 | One 22-day gap at the generation hand-off (2026-02-24 -> 2026-03-17). `EN_1000` alone runs gap-free 2016-12-15 -> 2026-02-23; `EN_2000` is a new generation starting right after. |
+| understory (`NEON.D03.OSBS.DP1.00042`) | `GR_1000`+`GR_2000` | 3,546 | 2016-12-14 -> 2026-10-04 | One 36-day gap at the hand-off (2025-12-10 -> 2026-01-14). **`UN_0001` -- the semantically obvious name match -- was checked and rejected**: it's a short series that stops 2018-03-11 (453 rows), the same pattern as CPER's abandoned understory camera. `GR_1000`+`GR_2000` gives vastly better coverage. |
+
+**Eddy covariance (DP4.00200.001): not pulled.** Cataloged and confirmed
+available (2017-02 -> 2026-08 per `neon_site_availability.py`), but this
+is a separate, potentially multi-GB HDF5 pull (see CPER's/CLBJ's
+experience) that hasn't been requested for this site yet.
 
 ### 6. Uploading to HuggingFace
 
@@ -208,9 +275,7 @@ not `scripts/` (code lives on GitHub) or `processed/` (local-only).
 
 ### 7. Known issues and gotchas
 
-Carried forward from `neon_CPER`/`neon_CLBJ` (expected to still apply,
-same root causes in `neonutilities`/NEON's API -- not yet re-confirmed
-against a real OSBS pull):
+Carried forward from `neon_CPER`/`neon_CLBJ`, confirmed to still apply:
 
 - **`neonutilities` 2.0.1 vs `pandas` 3.0 incompatibility** -- fixed by
   pinning `pandas<3` in `scripts/requirements.txt`.
@@ -218,15 +283,25 @@ against a real OSBS pull):
   `SCO2C_30min`.
 - **`wind` (DP1.00001.001)** returns speed and direction in the same
   stacked table (`2DWSD_30min`).
-- **`precipitation`** uses `DP1.00044.001` (weighing gauge), not the
-  deprecated `DP1.00006.001` -- not yet confirmed OSBS actually publishes
-  this specific product.
-- **PhenoCam ROI codes need live re-verification** -- see
-  [metadata/README.md](metadata/README.md). OSBS's structure (9 canopy +
-  6 understory ROI codes) is more complex than either sibling site and a
-  first-pass check returned some results (the `XX_*` ROIs) that look like
-  tool artifacts rather than real data -- don't trust any specific date
-  range in this repo's docs until re-checked with a direct CSV parse.
+- **`precipitation`** uses `DP1.00044.001` (weighing gauge) -- confirmed
+  OSBS publishes it, 2016-09-26 -> 2025-06-30, 76,800 rows.
+- **Transient `ConnectionError`s under bulk pull volume** -- 5 of 11
+  products failed on the first `download_full_history.py` pass with
+  `ConnectionError: Cannot access NEON API`; a 90s backoff + individual
+  retry via `download_neon_product.py` cleared all 5. Same pattern CPER
+  documented -- don't assume a bad token/site code if this recurs.
+
+New, OSBS-specific finding from this repo's setup (2026-10-05):
+
+- **PhenoCam's semantically-obvious ROI name was the wrong pick.**
+  `UN_0001` ("UN" = understory, matching CLBJ's `UN_1000` naming for the
+  same product) looked like the right choice by convention, but direct
+  CSV verification showed it's actually a short series retired in 2018
+  (453 rows, 2016-12-14 -> 2018-03-11) -- the real long-running camera is
+  under `GR_1000`+`GR_2000` instead (3,546 rows spanning nearly the full
+  decade). Don't pick a PhenoCam ROI by name pattern alone; check actual
+  date ranges first. See [metadata/README.md](metadata/README.md) for
+  the full verification detail on both OSBS PhenoCam products.
 
 ### 8. File naming conventions
 
@@ -236,13 +311,15 @@ Same as `neon_CPER`/`neon_CLBJ`:
 <SITE>_<product_shortname>_<start_YYYY-MM>_<end_YYYY-MM>.csv
 ```
 
-e.g. `OSBS_air_temperature_2014-08_2026-08.csv` (once pulled).
+e.g. `OSBS_air_temperature_2014-08_2026-08.csv`.
 
 PhenoCam CSVs (day granularity, not month):
 
 ```
 <SITE>_<alias>_<start_YYYY-MM-DD>_<end_YYYY-MM-DD>.csv
 ```
+
+e.g. `OSBS_phenocam_canopy_2016-12-15_2026-10-04.csv`.
 
 Raw source files from NEON (before this script concatenates them) follow
 NEON's own convention:

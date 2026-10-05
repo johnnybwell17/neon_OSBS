@@ -127,36 +127,35 @@ products:
   # come from phenocam.nau.edu's own archive, not NEON's /data API, so
   # they have no NEON dpid, interval_min, or neonutilities table name.
   #
-  # OSBS is NOT a simple repeat of CPER/CLBJ here. A live directory check
-  # of phenocam.nau.edu/data/archive/<id>/ROI/ on 2026-10-05 found FAR more
-  # ROI codes than either sibling site:
-  #   - NEON.D03.OSBS.DP1.00033 (canopy):    EN_0001, EN_0002, EN_1000,
-  #     EN_1001, EN_1002, EN_2000, EN_2001, EN_2002, XX_1000  (9 total)
-  #   - NEON.D03.OSBS.DP1.00042 (understory): GR_1000, GR_1001, GR_2000,
-  #     UN_0001, XX_1000, XX_2000  (6 total)
-  # PhenoCam ROI prefixes are standardized vegetation-type codes (DB =
-  # deciduous broadleaf, used at CLBJ; GR = grassland, used at CPER; EN =
-  # evergreen needleleaf; UN = understory/unclassified; XX = not
-  # classified / cross-calibration). EN for OSBS's canopy camera fits --
-  # OSBS is a longleaf pine (evergreen needleleaf) site -- and GR/UN for
-  # the understory camera fits a pine-savanna grass/wiregrass groundcover.
-  #
-  # A first-pass date-range check on every *_1day.csv found the EN_*
-  # series (canopy) and GR_*/UN_0001 (understory) all clustering in a
-  # short 2016-12 -> ~2018-02 window (consistent with CPER's pattern of
-  # several simultaneous ROIs retired together), EXCEPT the XX_1000/
-  # XX_2000 files, which returned suspiciously IDENTICAL date ranges
-  # across different files/products -- almost certainly a fetch artifact
-  # (truncation or caching), not real data. None of that first pass used
-  # a real CSV parse (an AI-summarized web fetch, not curl/pandas), so
-  # none of the specific dates/row-counts above should be trusted.
-  #
-  # DO NOT treat the ROI choice below as settled. Re-verify for real
-  # before a real pull: curl each *_1day.csv directly (not via a
-  # summarizing fetch), or just let download_phenocam_gcc.py --full-history
-  # pull every candidate ROI once and compare actual coverage, THEN narrow
-  # the `roi:`/`rois:` field to whichever one(s) actually span the
-  # intended range without truncating it -- same process CPER/CLBJ used.
+  # OSBS has far more ROI codes than CPER/CLBJ for both products. Verified
+  # by directly pandas.read_csv()-ing every *_1day.csv on 2026-10-05 (real
+  # parse, not a summarized fetch -- an earlier AI-summarized pass on the
+  # same URLs gave unreliable/inconsistent numbers, which is why this was
+  # redone properly):
+  #   - NEON.D03.OSBS.DP1.00033 (canopy): EN_0001/EN_0002 (453 rows,
+  #     2016-12-14 -> 2018-03-11, retired together, like CPER's
+  #     GR_0001/0002/0003); EN_1000/EN_1001/EN_1002 (~3358 rows,
+  #     2016-12-15 -> 2026-02-23, essentially gap-free -- the real
+  #     long-running generation, three near-identical concurrent ROIs
+  #     within it); EN_2000/EN_2001/EN_2002 (201 rows, 2026-03-18 ->
+  #     present -- a NEW generation picking up just 23 days after
+  #     EN_1000 stops, a genuine sequential hand-off like CLBJ's
+  #     DB_1000->2000->3000); XX_1000 (1023 rows, 2016-12-14 ->
+  #     2019-10-02, an unrelated shorter series).
+  #   - NEON.D03.OSBS.DP1.00042 (understory): GR_1000 (3283 rows,
+  #     2016-12-14 -> 2025-12-09, the real long-running series);
+  #     GR_1001 (6 rows only, 2023-05 test/anomaly, ignore); GR_2000
+  #     (263 rows, 2026-01-15 -> present -- hand-off from GR_1000, ~5
+  #     week gap at the seam); UN_0001 (453 rows, 2016-12-14 ->
+  #     2018-03-11 only -- despite the semantically-fitting name, this
+  #     is the SHORT retired-in-2018 series, analogous to CPER's
+  #     abandoned understory camera, NOT the best full-history choice);
+  #     XX_1000/XX_2000 (both 1023 rows, 2016-12-14 -> 2019-10-02,
+  #     identical to canopy's XX_1000 -- likely a shared/reused
+  #     unclassified-ROI definition, not used here).
+  # download_phenocam_gcc.py's `rois:` list stitches sequential
+  # generations chronologically (same mechanism as CLBJ's canopy entry)
+  # -- used below for both OSBS entries to cover the 2026 hand-off gap.
 
   - id: NEON.D03.OSBS.DP1.00033
     aliases: [phenocam_canopy, canopy_phenocam]
@@ -164,21 +163,17 @@ products:
     data_type: csv
     source: phenocam_network
     base_url: https://phenocam.nau.edu/data/archive
-    roi: EN_1000
+    rois: [EN_1000, EN_2000]
     file_match: "{site}_{roi}_1day.csv"
     priority: secondary
     notes: >
-      UNVERIFIED CHOICE -- see catalog header above. EN_1000 picked only
-      by the project's "_1000 suffix = primary ROI" convention from
-      CPER/CLBJ, NOT because its date range was confirmed to span OSBS's
-      full canopy-camera history. 9 ROI codes exist for this product
-      (EN_0001/0002/1000/1001/1002/2000/2001/2002, XX_1000) -- more than
-      double CPER's count for the equivalent product. A preliminary
-      check suggested most EN_* ROIs cluster in a short 2016-12 ->
-      2018-02 window (like CPER's retired-together GR_0001/0002/0003),
-      which would mean EN_1000 alone may NOT reach the present the way
-      CPER's GR_1000 did -- re-verify live before trusting this entry
-      for a "full history" pull; don't assume it behaves like CPER's.
+      Verified live via direct pandas.read_csv() on 2026-10-05 (see
+      catalog header above). EN_1000 covers 2016-12-15 -> 2026-02-23
+      (gap-free, 3358 rows); EN_2000 picks up 2026-03-18 -> present
+      (201 rows) -- a genuine sequential ROI hand-off, not overlapping
+      duplicates like EN_0001/0002 or a one-off like XX_1000. Stitched
+      via `rois:` the same way CLBJ's canopy camera stitches
+      DB_1000/2000/3000. Only a ~23-day gap at the hand-off seam.
 
   - id: NEON.D03.OSBS.DP1.00042
     aliases: [phenocam_understory, understory_phenocam]
@@ -186,20 +181,20 @@ products:
     data_type: csv
     source: phenocam_network
     base_url: https://phenocam.nau.edu/data/archive
-    roi: UN_0001
+    rois: [GR_1000, GR_2000]
     file_match: "{site}_{roi}_1day.csv"
     priority: primary
     notes: >
-      UNVERIFIED CHOICE -- see catalog header above. UN_0001 picked
-      because "UN" (understory/unclassified) is the semantically closest
-      PhenoCam vegetation-type code to this product's role, echoing
-      CLBJ's UN_1000 for the same product -- NOT because its date range
-      was confirmed. 6 ROI codes exist here (GR_1000/1001/2000, UN_0001,
-      XX_1000/2000) vs CPER's single GR_0001 for the equivalent product.
-      Re-verify live (actual CSV parse, not a summarized fetch) before a
-      real pull -- a GR_* code might turn out to be the better/longer-
-      running choice instead; nothing here has been confirmed the way
-      CPER's and CLBJ's phenocam entries were.
+      Verified live via direct pandas.read_csv() on 2026-10-05 (see
+      catalog header above). GR_1000 covers 2016-12-14 -> 2025-12-09
+      (3283 rows); GR_2000 picks up 2026-01-15 -> present (263 rows) --
+      a genuine sequential hand-off, ~5-week gap at the seam. NOTE:
+      UN_0001 looked like the semantically-obvious pick (name matches
+      "understory") but is actually the short series that stopped in
+      2018-03-11 (same pattern as CPER's abandoned understory camera)
+      -- GR_1000+GR_2000 gives far better coverage and was used instead.
+      Don't assume the "UN"-prefixed ROI is always the right one to use
+      for this product/role; check actual date ranges, not the name.
 
   # -- Eddy covariance, pulled by scripts/download_eddy_covariance.py, NOT
   # download_neon_product.py. Delivered as HDF5 bundles rather than the
