@@ -1,0 +1,9 @@
+neonutilities>=2.0.1
+pyyaml>=6.0
+# neonutilities 2.0.1's stack_eddy() (used by download_eddy_covariance.py)
+# calls a drop(columns=..., axis=1) pattern pandas 3.0 rejects outright.
+# Pin below 3 until neonutilities ships a fix.
+pandas<3
+requests>=2.0
+# used by scripts/upload_to_huggingface.py to push raw/ to the HF dataset repo
+huggingface_hub>=0.25.0

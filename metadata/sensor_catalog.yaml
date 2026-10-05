@@ -1,0 +1,239 @@
+# Catalog of NEON data products used by this project.
+#
+# download_neon_product.py reads this file to resolve a product alias (or
+# raw NEON product id) to: which folder it belongs in, which neonutilities
+# table holds the actual sensor readings, and what native averaging
+# interval that table publishes at. Add a new entry here before pulling a
+# new product -- don't hardcode product details into the script.
+#
+# Fields:
+#   id            NEON data product code (DP#.#####.###)
+#   aliases       short names this product can be referred to by on the CLI
+#   folder        raw/ subfolder this product's combined CSV is written to
+#   data_type     human-readable description
+#   file_match    name of the neonutilities-stacked table holding the
+#                 sensor readings (neonutilities returns a dict of tables
+#                 per product; this picks the right one out of it)
+#   interval_min  native averaging interval of that table, in minutes
+#                 (passed to neonutilities as `timeindex`)
+#   notes         anything non-obvious about this product (deprecations,
+#                 site-specific quirks, etc.)
+#
+# The 11 core sensor product entries and the DP4.00200.001 eddy covariance
+# entry below are copied unchanged from neon_CPER/neon_CLBJ -- NEON product
+# catalog entries aren't site-specific, --site is passed at download time.
+# Site-specific details (actual availableMonths, sensor position layout,
+# provisional-data cutoff) are NOT baked in here; run
+# scripts/neon_site_availability.py --site OSBS and check pulled data's
+# own position columns instead of assuming CPER's/CLBJ's numbers apply.
+
+products:
+  - id: DP1.00002.001
+    aliases: [air_temperature, airtemp, saat]
+    folder: raw/air_temperature
+    data_type: Single Aspirated Air Temperature
+    file_match: SAAT_30min
+    interval_min: 30
+
+  - id: DP1.00094.001
+    aliases: [soil_moisture, soilmoisture, swc]
+    folder: raw/soil_moisture
+    data_type: Soil Water Content
+    file_match: SWS_30_minute
+    interval_min: 30
+
+  - id: DP1.00041.001
+    aliases: [soil_temperature, soiltemp, st]
+    folder: raw/soil_temperature
+    data_type: Soil Temperature
+    file_match: ST_30_minute
+    interval_min: 30
+
+  - id: DP1.00044.001
+    aliases: [precipitation, precip, weiprep]
+    folder: raw/precipitation
+    data_type: Precipitation - Weighing Gauge
+    file_match: WEIPRE_60min
+    interval_min: 60
+    notes: >
+      DP1.00006.001 ("Precipitation") was deprecated by NEON and split
+      into DP1.00044.001 (weighing gauge), DP1.00045.001 (tipping
+      bucket), DP1.00046.001 (throughfall). Inherited from CLBJ/CPER as
+      the direct successor to the old bulk precipitation product --
+      confirm OSBS actually publishes DP1.00044.001 specifically (not
+      just tipping-bucket or throughfall) via
+      neon_site_availability.py before relying on this alias; this
+      hasn't been re-checked against OSBS's own product list yet.
+      Publishes at 60-minute/daily resolution only, no 30-minute table.
+
+  - id: DP1.00023.001
+    aliases: [radiation_net, netradiation, net_radiation, nr]
+    folder: raw/radiation
+    data_type: Net Radiation
+    file_match: SLRNR_30min
+    interval_min: 30
+
+  - id: DP1.00024.001
+    aliases: [radiation_par, par]
+    folder: raw/radiation
+    data_type: Photosynthetically Active Radiation (PAR)
+    file_match: PARPAR_30min
+    interval_min: 30
+
+  - id: DP1.00098.001
+    aliases: [relative_humidity, RH, "relative humidity"]
+    folder: raw/humidity
+    data_type: Relative Humidity
+    file_match: RH_30min
+    interval_min: 30
+
+  - id: DP1.00004.001
+    aliases: [barometric_pressure, "barometric pressure", "air pressure", "surface pressure"]
+    folder: raw/pressure
+    data_type: Barometric Pressure
+    file_match: BP_30min
+    interval_min: 30
+
+  - id: DP1.00001.001
+    aliases: [wind, "wind speed", "wind direction"]
+    folder: raw/wind
+    data_type: 2D Wind Speed and Direction
+    file_match: 2DWSD_30min
+    interval_min: 30
+    notes: >
+      Speed and direction are both fields in the same stacked table
+      (2DWSD_30min) -- no separate table/product for each.
+
+  - id: DP1.00040.001
+    aliases: [soil_heat_flux, "soil heat flux", shf]
+    folder: raw/soil_heat_flux
+    data_type: Soil Heat Flux Plate
+    file_match: SHF_30min
+    interval_min: 30
+
+  - id: DP1.00095.001
+    aliases: [soil_co2, "soil CO2", "soil carbon dioxide"]
+    folder: raw/soil_co2
+    data_type: Soil CO2 Concentration
+    file_match: SCO2C_30_minute
+    interval_min: 30
+    notes: >
+      Actual neonutilities stacked table name is SCO2C_30_minute (not
+      SCO2C_30min) -- a CLBJ/CPER finding, inherited here unverified for
+      OSBS. Re-check if download_one() reports a "table not found" error.
+
+  # -- PhenoCam Network entries below are pulled by
+  # scripts/download_phenocam_gcc.py, NOT download_neon_product.py -- they
+  # come from phenocam.nau.edu's own archive, not NEON's /data API, so
+  # they have no NEON dpid, interval_min, or neonutilities table name.
+  #
+  # OSBS is NOT a simple repeat of CPER/CLBJ here. A live directory check
+  # of phenocam.nau.edu/data/archive/<id>/ROI/ on 2026-10-05 found FAR more
+  # ROI codes than either sibling site:
+  #   - NEON.D03.OSBS.DP1.00033 (canopy):    EN_0001, EN_0002, EN_1000,
+  #     EN_1001, EN_1002, EN_2000, EN_2001, EN_2002, XX_1000  (9 total)
+  #   - NEON.D03.OSBS.DP1.00042 (understory): GR_1000, GR_1001, GR_2000,
+  #     UN_0001, XX_1000, XX_2000  (6 total)
+  # PhenoCam ROI prefixes are standardized vegetation-type codes (DB =
+  # deciduous broadleaf, used at CLBJ; GR = grassland, used at CPER; EN =
+  # evergreen needleleaf; UN = understory/unclassified; XX = not
+  # classified / cross-calibration). EN for OSBS's canopy camera fits --
+  # OSBS is a longleaf pine (evergreen needleleaf) site -- and GR/UN for
+  # the understory camera fits a pine-savanna grass/wiregrass groundcover.
+  #
+  # A first-pass date-range check on every *_1day.csv found the EN_*
+  # series (canopy) and GR_*/UN_0001 (understory) all clustering in a
+  # short 2016-12 -> ~2018-02 window (consistent with CPER's pattern of
+  # several simultaneous ROIs retired together), EXCEPT the XX_1000/
+  # XX_2000 files, which returned suspiciously IDENTICAL date ranges
+  # across different files/products -- almost certainly a fetch artifact
+  # (truncation or caching), not real data. None of that first pass used
+  # a real CSV parse (an AI-summarized web fetch, not curl/pandas), so
+  # none of the specific dates/row-counts above should be trusted.
+  #
+  # DO NOT treat the ROI choice below as settled. Re-verify for real
+  # before a real pull: curl each *_1day.csv directly (not via a
+  # summarizing fetch), or just let download_phenocam_gcc.py --full-history
+  # pull every candidate ROI once and compare actual coverage, THEN narrow
+  # the `roi:`/`rois:` field to whichever one(s) actually span the
+  # intended range without truncating it -- same process CPER/CLBJ used.
+
+  - id: NEON.D03.OSBS.DP1.00033
+    aliases: [phenocam_canopy, canopy_phenocam]
+    folder: raw/phenocam/canopy
+    data_type: csv
+    source: phenocam_network
+    base_url: https://phenocam.nau.edu/data/archive
+    roi: EN_1000
+    file_match: "{site}_{roi}_1day.csv"
+    priority: secondary
+    notes: >
+      UNVERIFIED CHOICE -- see catalog header above. EN_1000 picked only
+      by the project's "_1000 suffix = primary ROI" convention from
+      CPER/CLBJ, NOT because its date range was confirmed to span OSBS's
+      full canopy-camera history. 9 ROI codes exist for this product
+      (EN_0001/0002/1000/1001/1002/2000/2001/2002, XX_1000) -- more than
+      double CPER's count for the equivalent product. A preliminary
+      check suggested most EN_* ROIs cluster in a short 2016-12 ->
+      2018-02 window (like CPER's retired-together GR_0001/0002/0003),
+      which would mean EN_1000 alone may NOT reach the present the way
+      CPER's GR_1000 did -- re-verify live before trusting this entry
+      for a "full history" pull; don't assume it behaves like CPER's.
+
+  - id: NEON.D03.OSBS.DP1.00042
+    aliases: [phenocam_understory, understory_phenocam]
+    folder: raw/phenocam/understory
+    data_type: csv
+    source: phenocam_network
+    base_url: https://phenocam.nau.edu/data/archive
+    roi: UN_0001
+    file_match: "{site}_{roi}_1day.csv"
+    priority: primary
+    notes: >
+      UNVERIFIED CHOICE -- see catalog header above. UN_0001 picked
+      because "UN" (understory/unclassified) is the semantically closest
+      PhenoCam vegetation-type code to this product's role, echoing
+      CLBJ's UN_1000 for the same product -- NOT because its date range
+      was confirmed. 6 ROI codes exist here (GR_1000/1001/2000, UN_0001,
+      XX_1000/2000) vs CPER's single GR_0001 for the equivalent product.
+      Re-verify live (actual CSV parse, not a summarized fetch) before a
+      real pull -- a GR_* code might turn out to be the better/longer-
+      running choice instead; nothing here has been confirmed the way
+      CPER's and CLBJ's phenocam entries were.
+
+  # -- Eddy covariance, pulled by scripts/download_eddy_covariance.py, NOT
+  # download_neon_product.py. Delivered as HDF5 bundles rather than the
+  # CSV/table-per-product format every other NEON entry here uses, so it
+  # needs neonutilities.zips_by_product() + stack_eddy() instead of
+  # load_by_product() -- there is no single stacked "table name" to put
+  # in file_match, hence no file_match/interval_min fields here. Entry
+  # copied unchanged from CPER/CLBJ -- see scripts/download_eddy_covariance.py
+  # and neon_site_availability.py --site OSBS for OSBS's own actual
+  # availableMonths range before a real pull (not checked yet here).
+
+  - id: DP4.00200.001
+    name: "Bundled Eddy Covariance (Net Ecosystem Exchange, fluxes)"
+    aliases: ["eddy covariance", EC, "flux data", NEE, "net ecosystem exchange"]
+    folder: raw/eddy_covariance
+    data_type: hdf5_eddy
+    notes: >
+      Delivered as HDF5, not CSV -- requires neonutilities.stack_eddy()
+      to convert to tabular format, not the standard load_by_product()
+      CSV path used for every other product in this catalog. Download
+      with zips_by_product() (package="basic"), then
+      stack_eddy(filepath=<download folder>, level="dp04") for final
+      30-min flux values. zips_by_product() saves one zip per site-month
+      under <savepath>/filesToStack00200/ -- point stack_eddy() at
+      <savepath> itself, not at the zip files directly.
+
+      There is no single flat "qfFinl" column in the stacked dp04 table
+      -- there are 11, one per flux term/stage (e.g.
+      qfqm.fluxCo2.nsae.qfFinl, qfqm.fluxH2o.turb.qfFinl, ...).
+      download_eddy_covariance.py filters only on
+      qfqm.fluxCo2.nsae.qfFinl == 0 ("nsae" = net surface-atmosphere
+      exchange = NEE) and leaves the other 10 untouched.
+
+      Also requires pandas<3 in the venv -- see scripts/requirements.txt.
+      OSBS's actual availableMonths range has not been checked yet --
+      run scripts/neon_site_availability.py --site OSBS first and read
+      the printed size estimate before letting a full pull proceed.
